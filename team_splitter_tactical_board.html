@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Soccer Team Splitter & Tactic Board</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        .pitch {
+            background-color: #2E7D32;
+            position: relative;
+            aspect-ratio: 7 / 5;
+            width: 100%;
+            max-width: 1000px;
+            margin: auto;
+            border: 2px solid white;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.2);
+        }
+        .pitch-line { position: absolute; background-color: rgba(255,255,255,0.7); }
+        .center-line { width: 2px; height: 100%; top: 0; left: 50%; transform: translateX(-50%); }
+        .center-circle { width: 20%; aspect-ratio: 1 / 1; top: 50%; left: 50%; transform: translate(-50%, -50%); border: 2px solid rgba(255,255,255,0.7); border-radius: 50%; }
+        .center-spot { width: 2%; aspect-ratio: 1/1; top: 50%; left: 50%; transform: translate(-50%, -50%); border-radius: 50%; background-color: white;}
+        .penalty-area { height: 60%; width: 18%; top: 20%; border: 2px solid rgba(255,255,255,0.7); }
+        .penalty-area.left { left: 0; }
+        .penalty-area.right { right: 0; }
+        .goal-area { height: 30%; width: 8%; top: 35%; border: 2px solid rgba(255,255,255,0.7); }
+        .goal-area.left { left: 0; }
+        .goal-area.right { right: 0; }
+        .player-token {
+            position: absolute;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 10px;
+            text-align: center;
+            cursor: grab;
+            user-select: none;
+            border: 2px solid white;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.4);
+            z-index: 10;
+        }
+        .player-token.dragging {
+            cursor: grabbing;
+            z-index: 20;
+            transform: scale(1.1);
+        }
+        .attribute-tag {
+            display: inline-block;
+            background-color: #4a5568;
+            border-radius: 9999px;
+            padding: 2px 8px;
+            font-size: 10px;
+            font-weight: 500;
+            margin-right: 4px;
+            margin-top: 4px;
+        }
+        /* Simple spinner */
+        .spinner {
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #3498db;
+            border-radius: 50%;
+            width: 16px;
+            height: 16px;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            margin-right: 8px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-200 min-h-screen">
+
+    <div class="container mx-auto p-4 md:p-8">
+        <header class="text-center mb-8">
+            <h1 class="text-4xl md:text-5xl font-bold text-white">Soccer Match Manager</h1>
+            <p class="text-gray-400 mt-2">Split teams and plan your formation.</p>
+        </header>
+
+        <!-- Tabs -->
+        <div class="mb-8 flex justify-center border-b border-gray-700">
+            <button id="tab-splitter" class="tab-button text-lg font-semibold py-3 px-6 text-white border-b-2 border-cyan-500">Team Splitter</button>
+            <button id="tab-board" class="tab-button text-lg font-semibold py-3 px-6 text-gray-500 border-b-2 border-transparent">Tactical Board</button>
+        </div>
+
+        <!-- App Content -->
+        <main id="app-content">
+
+            <!-- Team Splitter View -->
+            <div id="view-splitter">
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    
+                    <div class="lg:col-span-1 bg-gray-800 p-6 rounded-lg shadow-lg">
+                        <h2 class="text-2xl font-bold mb-4 border-b border-gray-600 pb-2">Available Players (<span id="player-count">0</span>)</h2>
+                        <div id="player-list" class="space-y-3 max-h-96 overflow-y-auto pr-2">
+                            <!-- Player list will be injected here -->
+                        </div>
+                        <div class="mt-6 space-y-3">
+                            <button id="generate-teams" class="w-full bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-3 px-4 rounded-lg transition duration-300 shadow-md">
+                                Generate Random Teams
+                            </button>
+                             <button id="balance-teams-ai" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-lg transition duration-300 shadow-md flex items-center justify-center">
+                                ✨ Balance Teams with AI
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="lg:col-span-2">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                            <div class="bg-gray-800 p-6 rounded-lg shadow-lg">
+                                <h2 class="text-2xl font-bold mb-4 text-center text-blue-400">Team A</h2>
+                                <ul id="team-a-list" class="space-y-2 text-center text-lg">
+                                    <li class="text-gray-500">Players will appear here...</li>
+                                </ul>
+                            </div>
+                            <div class="bg-gray-800 p-6 rounded-lg shadow-lg">
+                                <h2 class="text-2xl font-bold mb-4 text-center text-red-400">Team B</h2>
+                                <ul id="team-b-list" class="space-y-2 text-center text-lg">
+                                   <li class="text-gray-500">Players will appear here...</li>
+                                </ul>
+                            </div>
+                        </div>
+                        <div id="ai-analysis-container" class="mt-8 bg-gray-800 p-6 rounded-lg shadow-lg hidden">
+                            <h3 class="text-xl font-bold mb-3 text-indigo-400">✨ AI Analysis</h3>
+                            <p id="ai-analysis-text" class="text-gray-300 whitespace-pre-wrap"></p>
+                        </div>
+                    </div>
+                </div>
+                 <!-- Add/Edit Players Section -->
+                <div class="mt-8 bg-gray-800 p-6 rounded-lg shadow-lg">
+                    <h2 class="text-2xl font-bold mb-4">Add New Player</h2>
+                    <div class="space-y-4">
+                        <input type="text" id="new-player-name" placeholder="Enter new player name" class="w-full bg-gray-700 text-white rounded-md p-3 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-cyan-500">
+                        <div>
+                            <label class="font-semibold mb-2 block">Attributes:</label>
+                            <div id="add-player-attributes" class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                                <!-- Attributes checkboxes injected here -->
+                            </div>
+                        </div>
+                        <div>
+                            <label for="new-player-position" class="font-semibold mb-2 block">Preferred Position:</label>
+                            <select id="new-player-position" class="w-full bg-gray-700 text-white rounded-md p-3 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-cyan-500">
+                                <!-- Position options injected here -->
+                            </select>
+                        </div>
+                        <button id="add-player" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg transition duration-300">Add Player</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tactical Board View -->
+            <div id="view-board" class="hidden">
+                <p class="text-center mb-4 text-gray-400">Drag and drop players to set your formation. Players who have joined the match will appear here.</p>
+                <div class="pitch rounded-lg overflow-hidden">
+                    <div class="pitch-line center-line"></div>
+                    <div class="pitch-line center-circle"></div>
+                    <div class="pitch-line center-spot"></div>
+                    <div class="pitch-line penalty-area left"></div>
+                    <div class="pitch-line goal-area left"></div>
+                    <div class="pitch-line penalty-area right"></div>
+                    <div class="pitch-line goal-area right"></div>
+                    <div id="pitch-tokens" class="w-full h-full"></div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Edit Player Modal -->
+    <div id="edit-player-modal" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 hidden z-50">
+        <div class="bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-md space-y-4">
+            <h2 class="text-2xl font-bold text-white">Edit Player</h2>
+            <input type="hidden" id="edit-player-id">
+            <input type="text" id="edit-player-name" class="w-full bg-gray-700 text-white rounded-md p-3 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-cyan-500">
+            <div>
+                <label class="font-semibold mb-2 block">Attributes:</label>
+                <div id="edit-player-attributes" class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    <!-- Edit attributes checkboxes injected here -->
+                </div>
+            </div>
+            <div>
+                <label for="edit-player-position" class="font-semibold mb-2 block">Preferred Position:</label>
+                <select id="edit-player-position" class="w-full bg-gray-700 text-white rounded-md p-3 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-cyan-500">
+                    <!-- Edit position options injected here -->
+                </select>
+            </div>
+            <div class="flex justify-end gap-4 mt-4">
+                <button id="cancel-edit" class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg">Cancel</button>
+                <button id="save-edit" class="bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-2 px-4 rounded-lg">Save Changes</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- CONSTANTS ---
+            const ATTRIBUTES = ['Pace', 'Shooting', 'Passing', 'Dribbling', 'Defending', 'Physicality'];
+            const POSITIONS = ['Goalkeeper', 'Defender', 'Midfielder', 'Forward'];
+
+            // --- STATE ---
+            let players = [];
+            let presentPlayers = [];
+            let teamA = [];
+            let teamB = [];
+
+            // --- DOM ELEMENTS ---
+            const tabSplitter = document.getElementById('tab-splitter');
+            const tabBoard = document.getElementById('tab-board');
+            const viewSplitter = document.getElementById('view-splitter');
+            const viewBoard = document.getElementById('view-board');
+            const playerListContainer = document.getElementById('player-list');
+            const playerCountSpan = document.getElementById('player-count');
+            const generateTeamsBtn = document.getElementById('generate-teams');
+            const balanceTeamsAIBtn = document.getElementById('balance-teams-ai');
+            const teamAList = document.getElementById('team-a-list');
+            const teamBList = document.getElementById('team-b-list');
+            const aiAnalysisContainer = document.getElementById('ai-analysis-container');
+            const aiAnalysisText = document.getElementById('ai-analysis-text');
+            const pitchTokensContainer = document.getElementById('pitch-tokens');
+            const newPlayerNameInput = document.getElementById('new-player-name');
+            const addPlayerBtn = document.getElementById('add-player');
+            const addPlayerAttributesContainer = document.getElementById('add-player-attributes');
+            const newPlayerPositionSelect = document.getElementById('new-player-position');
+
+            // Modal elements
+            const editModal = document.getElementById('edit-player-modal');
+            const editPlayerIdInput = document.getElementById('edit-player-id');
+            const editPlayerNameInput = document.getElementById('edit-player-name');
+            const editPlayerAttributesContainer = document.getElementById('edit-player-attributes');
+            const editPlayerPositionSelect = document.getElementById('edit-player-position');
+            const cancelEditBtn = document.getElementById('cancel-edit');
+            const saveEditBtn = document.getElementById('save-edit');
+
+            // --- FUNCTIONS ---
+            const savePlayersToLocalStorage = () => {
+                localStorage.setItem('soccerPlayers_v2', JSON.stringify(players));
+            };
+
+            const loadPlayersFromLocalStorage = () => {
+                const storedPlayersV2 = localStorage.getItem('soccerPlayers_v2');
+                if (storedPlayersV2) {
+                    players = JSON.parse(storedPlayersV2);
+                    return;
+                }
+                
+                const storedPlayersV1 = localStorage.getItem('soccerPlayers');
+                if (storedPlayersV1) {
+                    const oldPlayers = JSON.parse(storedPlayersV1);
+                    players = oldPlayers.map(name => ({
+                        id: self.crypto.randomUUID(),
+                        name: name,
+                        attributes: {},
+                        position: POSITIONS[2]
+                    }));
+                } else {
+                    players = [
+                        {id: self.crypto.randomUUID(), name: 'Leo', attributes: {Dribbling: true, Shooting: true, Passing: true}, position: 'Forward'},
+                        {id: self.crypto.randomUUID(), name: 'Cris', attributes: {Shooting: true, Pace: true, Physicality: true}, position: 'Forward'},
+                        {id: self.crypto.randomUUID(), name: 'Virgil', attributes: {Defending: true, Physicality: true, Passing: true}, position: 'Defender'},
+                        {id: self.crypto.randomUUID(), name: 'Kevin', attributes: {Passing: true, Shooting: true, Dribbling: true}, position: 'Midfielder'},
+                        {id: self.crypto.randomUUID(), name: 'Ney', attributes: {Dribbling: true, Pace: true, Passing: true}, position: 'Forward'},
+                        {id: self.crypto.randomUUID(), name: 'Luka', attributes: {Passing: true, Dribbling: true}, position: 'Midfielder'},
+                    ];
+                }
+                savePlayersToLocalStorage();
+            };
+            
+            const renderPlayerList = () => {
+                playerListContainer.innerHTML = '';
+                players.sort((a, b) => a.name.localeCompare(b.name)).forEach(player => {
+                    const playerCard = document.createElement('div');
+                    playerCard.className = 'bg-gray-700 p-3 rounded-md';
+                    const mainInfo = document.createElement('div');
+                    mainInfo.className = 'flex items-center justify-between';
+                    const label = document.createElement('label');
+                    label.className = 'flex items-center space-x-3 cursor-pointer';
+                    const checkbox = document.createElement('input');
+                    checkbox.type = 'checkbox';
+                    checkbox.dataset.playerId = player.id;
+                    checkbox.className = 'form-checkbox h-5 w-5 rounded bg-gray-800 border-gray-600 text-cyan-600 focus:ring-cyan-500';
+                    checkbox.addEventListener('change', updatePresentPlayers);
+                    const nameSpan = document.createElement('span');
+                    nameSpan.textContent = player.name;
+                    nameSpan.className = 'text-lg';
+                    label.appendChild(checkbox);
+                    label.appendChild(nameSpan);
+                    const buttonsDiv = document.createElement('div');
+                    buttonsDiv.className = 'flex items-center space-x-2';
+                    const editBtn = document.createElement('button');
+                    editBtn.textContent = 'Edit';
+                    editBtn.className = 'text-xs bg-gray-600 hover:bg-gray-500 px-2 py-1 rounded';
+                    editBtn.onclick = () => openEditModal(player.id);
+                    const removeBtn = document.createElement('button');
+                    removeBtn.innerHTML = '&times;';
+                    removeBtn.className = 'text-red-500 hover:text-red-400 font-bold text-xl leading-none';
+                    removeBtn.onclick = () => removePlayer(player.id);
+                    buttonsDiv.appendChild(editBtn);
+                    buttonsDiv.appendChild(removeBtn);
+                    mainInfo.appendChild(label);
+                    mainInfo.appendChild(buttonsDiv);
+                    const attributesInfo = document.createElement('div');
+                    attributesInfo.className = 'mt-2 pl-8';
+                    const playerAttributes = Object.keys(player.attributes || {}).filter(key => player.attributes[key]);
+                    if (playerAttributes.length > 0) {
+                        attributesInfo.innerHTML = playerAttributes.map(attr => `<span class="attribute-tag">${attr}</span>`).join('');
+                    } else {
+                         attributesInfo.innerHTML = `<span class="text-xs text-gray-500">No attributes set</span>`;
+                    }
+                    playerCard.appendChild(mainInfo);
+                    playerCard.appendChild(attributesInfo);
+                    playerListContainer.appendChild(playerCard);
+                });
+                updatePresentPlayers();
+            };
+
+            const updatePresentPlayers = () => {
+                const presentPlayerIds = Array.from(playerListContainer.querySelectorAll('input[type="checkbox"]:checked'))
+                                      .map(cb => cb.dataset.playerId);
+                presentPlayers = players.filter(p => presentPlayerIds.includes(p.id));
+                playerCountSpan.textContent = presentPlayers.length;
+            };
+
+            const shuffleArray = (array) => {
+                for (let i = array.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [array[i], array[j]] = [array[j], array[i]];
+                }
+            };
+            
+            const handleGenerateTeams = () => {
+                aiAnalysisContainer.classList.add('hidden');
+                updatePresentPlayers();
+                if (presentPlayers.length < 2) {
+                    alert('You need at least two players to form teams.');
+                    return;
+                }
+                const shuffled = [...presentPlayers];
+                shuffleArray(shuffled);
+                const midIndex = Math.ceil(shuffled.length / 2);
+                teamA = shuffled.slice(0, midIndex);
+                teamB = shuffled.slice(midIndex);
+                renderTeams();
+                renderTacticalBoard();
+            };
+            
+            const handleBalanceTeamsAI = async () => {
+                updatePresentPlayers();
+                if (presentPlayers.length < 2) {
+                    alert('You need at least two players to form teams to balance.');
+                    return;
+                }
+
+                balanceTeamsAIBtn.disabled = true;
+                balanceTeamsAIBtn.innerHTML = `<span class="spinner"></span> Thinking...`;
+
+                const formattedPlayers = presentPlayers.map(p => {
+                    const attributes = Object.keys(p.attributes || {}).filter(key => p.attributes[key]).join(', ');
+                    return `${p.name} (Position: ${p.position}, Skills: ${attributes || 'N/A'})`;
+                }).join('; ');
+
+                const systemPrompt = "You are an expert soccer coach. Your task is to create two balanced teams from a list of players. Analyze their skills and preferred positions to ensure the teams are as fair as possible in terms of offense, defense, and midfield control.";
+                const userQuery = `Here is the list of available players: ${formattedPlayers}. Please divide them into two teams: Team A and Team B. Provide your answer in a JSON format with three keys: "teamA" (an array of player names), "teamB" (an array of player names), and "reasoning" (a brief explanation of why you balanced the teams this way).`;
+                const apiKey = ""; 
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+                
+                const payload = {
+                    contents: [{ parts: [{ text: userQuery }] }],
+                    systemInstruction: { parts: [{ text: systemPrompt }] },
+                    generationConfig: {
+                        responseMimeType: "application/json",
+                    }
+                };
+
+                try {
+                    const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`API error: ${response.statusText}`);
+                    }
+
+                    const result = await response.json();
+                    const jsonResponseText = result.candidates[0].content.parts[0].text;
+                    const balancedTeams = JSON.parse(jsonResponseText);
+
+                    // Reconstruct teams with full player objects
+                    teamA = balancedTeams.teamA.map(name => presentPlayers.find(p => p.name === name)).filter(Boolean);
+                    teamB = balancedTeams.teamB.map(name => presentPlayers.find(p => p.name === name)).filter(Boolean);
+                    
+                    renderTeams();
+                    renderTacticalBoard();
+                    
+                    aiAnalysisText.textContent = balancedTeams.reasoning;
+                    aiAnalysisContainer.classList.remove('hidden');
+
+                } catch (error) {
+                    console.error('Error balancing teams with AI:', error);
+                    alert('Sorry, there was an error communicating with the AI. Please try again.');
+                    aiAnalysisContainer.classList.add('hidden');
+                } finally {
+                    balanceTeamsAIBtn.disabled = false;
+                    balanceTeamsAIBtn.innerHTML = '✨ Balance Teams with AI';
+                }
+            };
+            
+            const renderTeams = () => {
+                teamAList.innerHTML = teamA.map(p => `<li class="bg-gray-700 py-2 px-4 rounded-md">${p.name}</li>`).join('') || '<li class="text-gray-500">No players yet.</li>';
+                teamBList.innerHTML = teamB.map(p => `<li class="bg-gray-700 py-2 px-4 rounded-md">${p.name}</li>`).join('') || '<li class="text-gray-500">No players yet.</li>';
+            };
+            
+            const renderTacticalBoard = () => {
+                pitchTokensContainer.innerHTML = '';
+                const allTeamPlayers = [...teamA, ...teamB];
+                allTeamPlayers.forEach((player, index) => {
+                    const token = document.createElement('div');
+                    token.className = 'player-token';
+                    token.textContent = player.name.substring(0, 3).toUpperCase();
+                    token.title = `${player.name} (${player.position})`;
+                    const isTeamA = teamA.some(p => p.id === player.id);
+                    token.style.backgroundColor = isTeamA ? '#0284c7' : '#dc2626';
+                    const yPos = 15 + (index % 5) * 15;
+                    const xPos = isTeamA ? 10 + Math.floor(index / 5) * 10 : 90 - (10 + Math.floor(index / 5) * 10);
+                    token.style.top = `${yPos}%`;
+                    token.style.left = `${xPos}%`;
+                    makeDraggable(token);
+                    pitchTokensContainer.appendChild(token);
+                });
+            };
+            
+            const makeDraggable = (element) => {
+                // ... (draggable logic remains the same)
+                let isDragging = false, offsetX, offsetY;
+                const startDrag = (e) => {
+                    isDragging = true;
+                    element.classList.add('dragging');
+                    const event = e.type === 'touchstart' ? e.touches[0] : e;
+                    offsetX = event.clientX - element.getBoundingClientRect().left;
+                    offsetY = event.clientY - element.getBoundingClientRect().top;
+                    document.addEventListener('mousemove', onDrag);
+                    document.addEventListener('mouseup', endDrag);
+                    document.addEventListener('touchmove', onDrag);
+                    document.addEventListener('touchend', endDrag);
+                };
+                const onDrag = (e) => {
+                    if (!isDragging) return;
+                    e.preventDefault();
+                    const event = e.type === 'touchmove' ? e.touches[0] : e;
+                    const pitchRect = pitchTokensContainer.getBoundingClientRect();
+                    let newLeft = event.clientX - pitchRect.left - offsetX;
+                    let newTop = event.clientY - pitchRect.top - offsetY;
+                    newLeft = Math.max(0, Math.min(newLeft, pitchRect.width - element.offsetWidth));
+                    newTop = Math.max(0, Math.min(newTop, pitchRect.height - element.offsetHeight));
+                    element.style.left = `${newLeft}px`;
+                    element.style.top = `${newTop}px`;
+                };
+                const endDrag = () => {
+                    isDragging = false;
+                    element.classList.remove('dragging');
+                    document.removeEventListener('mousemove', onDrag);
+                    document.removeEventListener('mouseup', endDrag);
+                    document.removeEventListener('touchmove', onDrag);
+                    document.removeEventListener('touchend', endDrag);
+                };
+                element.addEventListener('mousedown', startDrag);
+                element.addEventListener('touchstart', startDrag);
+            };
+
+            const switchView = (view) => {
+                // ... (view switching logic remains the same)
+                if (view === 'splitter') {
+                    viewSplitter.classList.remove('hidden');
+                    viewBoard.classList.add('hidden');
+                    tabSplitter.classList.add('text-white', 'border-cyan-500');
+                    tabSplitter.classList.remove('text-gray-500', 'border-transparent');
+                    tabBoard.classList.add('text-gray-500', 'border-transparent');
+                    tabBoard.classList.remove('text-white', 'border-cyan-500');
+                } else {
+                    viewSplitter.classList.add('hidden');
+                    viewBoard.classList.remove('hidden');
+                    tabBoard.classList.add('text-white', 'border-cyan-500');
+                    tabBoard.classList.remove('text-gray-500', 'border-transparent');
+                    tabSplitter.classList.add('text-gray-500', 'border-transparent');
+                    tabSplitter.classList.remove('text-white', 'border-cyan-500');
+                }
+            };
+            
+            const addPlayer = () => {
+                // ... (add player logic remains the same)
+                const name = newPlayerNameInput.value.trim();
+                if (!name) { alert("Player name cannot be empty."); return; }
+                if (players.find(p => p.name.toLowerCase() === name.toLowerCase())) { alert("Player with this name already exists."); return; }
+                const attributes = {};
+                addPlayerAttributesContainer.querySelectorAll('input:checked').forEach(cb => {
+                    attributes[cb.value] = true;
+                });
+                const newPlayer = {
+                    id: self.crypto.randomUUID(),
+                    name,
+                    attributes,
+                    position: newPlayerPositionSelect.value
+                };
+                players.push(newPlayer);
+                savePlayersToLocalStorage();
+                renderPlayerList();
+                newPlayerNameInput.value = '';
+                addPlayerAttributesContainer.querySelectorAll('input').forEach(cb => cb.checked = false);
+                newPlayerPositionSelect.selectedIndex = 0;
+            };
+
+            const removePlayer = (playerIdToRemove) => {
+                // ... (remove player logic remains the same)
+                const player = players.find(p => p.id === playerIdToRemove);
+                if (confirm(`Are you sure you want to remove ${player.name}?`)) {
+                    players = players.filter(p => p.id !== playerIdToRemove);
+                    savePlayersToLocalStorage();
+                    renderPlayerList();
+                }
+            };
+
+            const openEditModal = (playerId) => {
+                // ... (modal logic remains the same)
+                const player = players.find(p => p.id === playerId);
+                if (!player) return;
+                editPlayerIdInput.value = player.id;
+                editPlayerNameInput.value = player.name;
+                editPlayerAttributesContainer.querySelectorAll('input').forEach(cb => {
+                    cb.checked = !!(player.attributes && player.attributes[cb.value]);
+                });
+                editPlayerPositionSelect.value = player.position;
+                editModal.classList.remove('hidden');
+            };
+
+            const closeEditModal = () => {
+                editModal.classList.add('hidden');
+            };
+
+            const savePlayerChanges = () => {
+                // ... (save changes logic remains the same)
+                 const playerId = editPlayerIdInput.value;
+                const playerIndex = players.findIndex(p => p.id === playerId);
+                if (playerIndex === -1) return;
+                const newName = editPlayerNameInput.value.trim();
+                if(!newName) { alert("Player name cannot be empty."); return; }
+                const updatedAttributes = {};
+                editPlayerAttributesContainer.querySelectorAll('input:checked').forEach(cb => {
+                    updatedAttributes[cb.value] = true;
+                });
+                players[playerIndex].name = newName;
+                players[playerIndex].attributes = updatedAttributes;
+                players[playerIndex].position = editPlayerPositionSelect.value;
+                savePlayersToLocalStorage();
+                renderPlayerList();
+                closeEditModal();
+            };
+
+            const populateAttributeAndPositionFields = () => {
+                // ... (populate fields logic remains the same)
+                const attributeCheckboxes = ATTRIBUTES.map(attr => `
+                    <label class="flex items-center space-x-2 cursor-pointer">
+                        <input type="checkbox" value="${attr}" class="form-checkbox h-4 w-4 rounded bg-gray-600 border-gray-500 text-cyan-500 focus:ring-cyan-500">
+                        <span>${attr}</span>
+                    </label>
+                `).join('');
+                addPlayerAttributesContainer.innerHTML = attributeCheckboxes;
+                editPlayerAttributesContainer.innerHTML = attributeCheckboxes;
+                const positionOptions = POSITIONS.map(pos => `<option value="${pos}">${pos}</option>`).join('');
+                newPlayerPositionSelect.innerHTML = positionOptions;
+                editPlayerPositionSelect.innerHTML = positionOptions;
+            };
+
+            // --- EVENT LISTENERS ---
+            tabSplitter.addEventListener('click', () => switchView('splitter'));
+            tabBoard.addEventListener('click', () => switchView('board'));
+            generateTeamsBtn.addEventListener('click', handleGenerateTeams);
+            balanceTeamsAIBtn.addEventListener('click', handleBalanceTeamsAI);
+            addPlayerBtn.addEventListener('click', addPlayer);
+            newPlayerNameInput.addEventListener('keypress', e => e.key === 'Enter' && addPlayer());
+            saveEditBtn.addEventListener('click', savePlayerChanges);
+            cancelEditBtn.addEventListener('click', closeEditModal);
+            editModal.addEventListener('click', (e) => e.target === editModal && closeEditModal());
+
+            // --- INITIALIZATION ---
+            populateAttributeAndPositionFields();
+            loadPlayersFromLocalStorage();
+            renderPlayerList();
+        });
+    </script>
+</body>
+</html>
+
