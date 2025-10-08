@@ -376,9 +376,9 @@
                 const systemPrompt = "You are an expert soccer coach. Your task is to create two balanced teams from a list of players. Analyze their skills and preferred positions to ensure the teams are as fair as possible in terms of offense, defense, and midfield control.";
                 const userQuery = `Here is the list of available players: ${formattedPlayers}. Please divide them into two teams: Team A and Team B. Provide ONLY a raw JSON object in your response. The JSON should have three keys: "teamA" (an array of player names), "teamB" (an array of player names), and "reasoning" (a brief explanation of why you balanced the teams this way). Do not include any extra text or markdown formatting.`;
                 
-                const apiKey = "AIzaSyAutXXWcCJVSJkaPZC-5ioWlmBJwMcYCII"; 
+                const apiKey = "to_do"; 
 
-                if (apiKey === "AIzaSyAutXXWcCJVSJkaPZC-5ioWlmBJwMcYCII" || !apiKey) {
+                if (apiKey === "to_do" || !apiKey) {
                     alert("API Key is missing. Please add your Google AI Studio API key to the code.");
                     balanceTeamsAIBtn.disabled = false;
                     balanceTeamsAIBtn.innerHTML = '✨ Balance Teams with AI';
