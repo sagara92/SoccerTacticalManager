@@ -366,6 +366,7 @@
 
                 balanceTeamsAIBtn.disabled = true;
                 balanceTeamsAIBtn.innerHTML = `<span class="spinner"></span> Thinking...`;
+                aiAnalysisContainer.classList.add('hidden'); // Hide previous results
 
                 const formattedPlayers = presentPlayers.map(p => {
                     const attributes = Object.keys(p.attributes || {}).filter(key => p.attributes[key]).join(', ');
@@ -373,8 +374,17 @@
                 }).join('; ');
 
                 const systemPrompt = "You are an expert soccer coach. Your task is to create two balanced teams from a list of players. Analyze their skills and preferred positions to ensure the teams are as fair as possible in terms of offense, defense, and midfield control.";
-                const userQuery = `Here is the list of available players: ${formattedPlayers}. Please divide them into two teams: Team A and Team B. Provide your answer in a JSON format with three keys: "teamA" (an array of player names), "teamB" (an array of player names), and "reasoning" (a brief explanation of why you balanced the teams this way).`;
-                const apiKey = ""; 
+                const userQuery = `Here is the list of available players: ${formattedPlayers}. Please divide them into two teams: Team A and Team B. Provide ONLY a raw JSON object in your response. The JSON should have three keys: "teamA" (an array of player names), "teamB" (an array of player names), and "reasoning" (a brief explanation of why you balanced the teams this way). Do not include any extra text or markdown formatting.`;
+                
+                const apiKey = "AIzaSyAutXXWcCJVSJkaPZC-5ioWlmBJwMcYCII"; 
+
+                if (apiKey === "AIzaSyAutXXWcCJVSJkaPZC-5ioWlmBJwMcYCII" || !apiKey) {
+                    alert("API Key is missing. Please add your Google AI Studio API key to the code.");
+                    balanceTeamsAIBtn.disabled = false;
+                    balanceTeamsAIBtn.innerHTML = '✨ Balance Teams with AI';
+                    return;
+                }
+
                 const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
                 
                 const payload = {
@@ -393,10 +403,17 @@
                     });
 
                     if (!response.ok) {
+                        const errorBody = await response.text();
+                        console.error("API Error Response:", errorBody);
                         throw new Error(`API error: ${response.statusText}`);
                     }
 
                     const result = await response.json();
+                    
+                    if (!result.candidates || !result.candidates[0] || !result.candidates[0].content) {
+                        throw new Error("Invalid response structure from AI.");
+                    }
+
                     const jsonResponseText = result.candidates[0].content.parts[0].text;
                     const balancedTeams = JSON.parse(jsonResponseText);
 
@@ -412,7 +429,7 @@
 
                 } catch (error) {
                     console.error('Error balancing teams with AI:', error);
-                    alert('Sorry, there was an error communicating with the AI. Please try again.');
+                    alert('Sorry, there was an error communicating with the AI. Please try again. Check the console (F12) for more details.');
                     aiAnalysisContainer.classList.add('hidden');
                 } finally {
                     balanceTeamsAIBtn.disabled = false;
